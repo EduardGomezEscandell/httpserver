@@ -9,12 +9,6 @@
 #include "defines.h"
 #include "net.h"
 
-uint16_t flipbytes16(uint16_t const b) {
-  const uint8_t lo = (uint8_t)(b & 0xff);
-  const uint8_t hi = (uint8_t)((b >> 8) & 0xff);
-  return (lo << 8) | hi;
-}
-
 char *fmt_ip(struct sockaddr_in const *const addr) {
   assert(addr->sin_family == AF_INET);
 
@@ -23,7 +17,7 @@ char *fmt_ip(struct sockaddr_in const *const addr) {
   uint8_t ip2 = addr->sin_addr.s_addr >> 16 & 0xff;
   uint8_t ip3 = addr->sin_addr.s_addr >> 24 & 0xff;
 
-  uint16_t p = flipbytes16(addr->sin_port);
+  uint16_t p = ntohs(addr->sin_port);
 
   char *buff =
       malloc(22 * sizeof(*buff)); // IP address=15 + separator=1 + port=5 + \0=1
@@ -31,7 +25,7 @@ char *fmt_ip(struct sockaddr_in const *const addr) {
   return buff;
 }
 
-in_port_t port(uint16_t p) { return flipbytes16(p); }
+in_port_t port(uint16_t p) { return htons(p); }
 
 struct in_addr ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
   return (struct in_addr){.s_addr = d << 24 | c << 16 | b << 8 | a};
