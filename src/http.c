@@ -1,3 +1,5 @@
+#include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,8 +10,9 @@
 #include <sys/socket.h>
 
 #include "defines.h"
-#include "http.h"
 #include "string_t.h"
+#include "reader.h"
+#include "http.h"
 
 void free_request(struct request_t *req) {
   free(req->type);
@@ -19,7 +22,6 @@ void free_request(struct request_t *req) {
     free(req->headers.data[i].key);
     free(req->headers.data[i].value);
   }
-  free(req->body);
   free(req);
 }
 
@@ -40,69 +42,9 @@ int headers_append(struct headers_t *headers, struct header_t header) {
   return 0;
 }
 
-#define reader_buff_cap 256
-
-struct reader_t {
-  int fd;
-  char buffer[reader_buff_cap];
-  size_t buf_begin;
-  size_t buf_end;
-  bool error;
-};
-
-struct string_t readline(struct reader_t *r, size_t maxchars) {
-  if (r->error) {
-    return null_string();
-  }
-
-  bool carriage = false;
-  size_t i = 0;
-  for (; i < maxchars; ++i) {
-    if (r->buf_begin >= r->buf_end) {
-      r->buf_begin = 0;
-      r->buf_end = reader_buff_cap;
-      int code = read(r->fd, r->buffer, reader_buff_cap);
-      switch (code) {
-      case 0:
-        goto on_success;
-      case -1:
-        goto on_error;
-      default:
-        r->buf_end = code;
-      }
-    }
-
-    const char ch = r->buffer[r->buf_begin + i];
-    if (ch == '\n' && !carriage) {
-      goto on_error;
-    }
-
-    if (ch == '\0') {
-      goto on_error;
-    }
-
-    if (ch == '\n' && carriage) {
-      goto on_success;
-    }
-
-    if (ch == '\r') {
-      carriage = true;
-    }
-  }
-
-on_error:
-  r->error = true;
-  return null_string();
-
-on_success: {
-  struct string_t str = new_string(r->buffer + r->buf_begin, i);
-  r->buf_begin += i + 1;
-  return str;
-}
-}
 
 int http_parse_first_line(struct reader_t *r, struct request_t *req) {
-  struct string_t line = readline(r, 1024);
+  struct string_t line = reader_readline(r, 1024);
   if (r->error) {
     return -1;
   }
@@ -142,7 +84,7 @@ int http_parse_first_line(struct reader_t *r, struct request_t *req) {
 int http_parse_headers(struct reader_t *r, struct request_t *req) {
   const size_t max_headers = 1024;
   for (size_t i = 0; i < max_headers; ++i) {
-    struct string_t line = readline(r, 1024);
+    struct string_t line = reader_readline(r, 1024);
     if (r->error) {
       return -2;
     }
@@ -179,6 +121,15 @@ int http_parse_headers(struct reader_t *r, struct request_t *req) {
   return -1;
 }
 
+size_t request_content_length(struct request_t *req) {
+  for (size_t i = 0; i < req->headers.len; ++i) {
+    if (strcmp(req->headers.data[i].key, "Content-Length") == 0) {
+      return atoll(req->headers.data[i].value);
+    }
+  }
+  return 0;
+}
+
 struct request_t *parse_request(int fd) {
   struct request_t *req = malloc(sizeof(*req));
   req->type = NULL;
@@ -187,29 +138,38 @@ struct request_t *parse_request(int fd) {
       .data = NULL,
       .len = 0,
   };
-  req->body = NULL;
-  req->error = false;
-
-  struct reader_t r = {
+  req->body = (struct reader_t){
       .fd = fd,
-      .buffer = {0},
       .buf_begin = 0,
       .buf_end = 0,
       .error = false,
   };
+  req->error = false;
 
-  if (http_parse_first_line(&r, req) != 0) {
+  // Not really the body yet, will be once we read over the headers
+  req->body = (struct reader_t){
+      .fd = fd,
+      .buffer = {0},
+      .buf_begin = 0,
+      .buf_end = 0,
+      .chars_left = -1,
+      .error = false,
+  };
+
+  if (http_parse_first_line(&req->body, req) != 0) {
     goto on_error;
   }
 
-  if (http_parse_headers(&r, req) != 0) {
+  if (http_parse_headers(&req->body, req) != 0) {
     goto on_error;
   }
 
+  req->body.chars_left = request_content_length(req) - reader_bufsize(&req->body);
   return req;
 
 on_error:
   req->error = true;
+  req->body.error = true;
   return req;
 }
 
@@ -224,5 +184,19 @@ void request_print(struct request_t *req) {
            req->headers.data[i].value);
   }
   printf("  ]\n");
+  printf("  body: '''\n");
+
+  for(;;) {
+    struct string_t line = reader_read(&req->body, 1024);
+    if (req->body.error) {
+      break;
+    }
+    if (line.len == 0) {
+      break;
+    }
+    printf("%s", to_cstr(&line));
+  }
+
+  printf("\n  '''\n");
   printf("}\n");
 }

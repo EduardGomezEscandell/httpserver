@@ -53,7 +53,6 @@ int main() {
     fprintln(fd, "Content-Type: text/plain");
     fprintln(fd, "");
     fprintln(fd, "Hello, World!");
-    fprintln(fd, "");
     goto on_close;
 
   on_close:

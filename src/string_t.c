@@ -30,6 +30,15 @@ int string_reserve(struct string_t *str, size_t newcap) {
 
   newcap = (newcap > 2*str->cap) ? newcap : 2*str->cap;
 
+  if (str->data == NULL) {
+    str->data = malloc(newcap * sizeof(*str->data));
+    if (str->data == NULL) {
+      return 1;
+    }
+    str->cap = newcap;
+    return 0;
+  }
+  
   str->data = realloc(str->data, newcap * sizeof(*str->data));
   if (str->data == NULL) {
     return 1;
@@ -39,7 +48,21 @@ int string_reserve(struct string_t *str, size_t newcap) {
   return 0;
 }
 
-int string_append(struct string_t *str, char c) {
+int string_append(struct string_t *str, const char *cstr, size_t len) {
+  if(len == 0) {
+    return 0;
+  }
+
+  if(string_reserve(str, str->len + len) != 0) {
+    return 1;
+  }
+
+  memcpy(str->data + str->len, cstr, len);
+  str->len += len;
+  return 0;
+}
+
+int string_push(struct string_t *str, char c) {
   if(string_reserve(str, str->len + 1) != 0) {
     return 1;
   }
@@ -61,7 +84,7 @@ void string_free(struct string_t *str) {
 }
 
 char *to_cstr(struct string_t *str) {
-  string_append(str, '\0');
+  string_push(str, '\0');
   char *cstr = str->data;
   *str = null_string();
   return cstr;
