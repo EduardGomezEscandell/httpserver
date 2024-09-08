@@ -11,16 +11,37 @@ struct string_t null_string() {
   };
 }
 
-struct string_t new_string() { return null_string(); }
+struct string_t new_string(const char *cstr, size_t len) {
+  struct string_t str = null_string();
+
+  if(string_reserve(&str, len) != 0) {
+    return null_string();
+  }
+
+  memcpy(str.data, cstr, len);
+  str.len = len;
+  return str;
+}
+
+int string_reserve(struct string_t *str, size_t newcap) {
+  if (newcap <= str->cap) {
+    return 0;
+  }
+
+  newcap = (newcap > 2*str->cap) ? newcap : 2*str->cap;
+
+  str->data = realloc(str->data, newcap * sizeof(*str->data));
+  if (str->data == NULL) {
+    return 1;
+  }
+
+  str->cap = newcap;
+  return 0;
+}
 
 int string_append(struct string_t *str, char c) {
-  if (str->len >= str->cap) {
-    str->cap = 16 + str->cap * 2;
-    str->data = (char *)realloc(str->data, str->cap * sizeof(*str->data));
-
-    if (str->data == NULL) {
-      return 1;
-    }
+  if(string_reserve(str, str->len + 1) != 0) {
+    return 1;
   }
 
   str->data[str->len] = c;
@@ -42,7 +63,7 @@ void string_free(struct string_t *str) {
 char *to_cstr(struct string_t *str) {
   string_append(str, '\0');
   char *cstr = str->data;
-  *str = new_string();
+  *str = null_string();
   return cstr;
 }
 

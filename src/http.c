@@ -55,17 +55,16 @@ struct string_t readline(struct reader_t *r, size_t maxchars) {
     return null_string();
   }
 
-  struct string_t line = new_string();
-
   bool carriage = false;
-  for (size_t i = 0; i < maxchars; ++i) {
+  size_t i = 0;
+  for (; i < maxchars; ++i) {
     if (r->buf_begin >= r->buf_end) {
       r->buf_begin = 0;
       r->buf_end = reader_buff_cap;
       int code = read(r->fd, r->buffer, reader_buff_cap);
       switch (code) {
       case 0:
-        return line;
+        goto on_success;
       case -1:
         goto on_error;
       default:
@@ -73,8 +72,7 @@ struct string_t readline(struct reader_t *r, size_t maxchars) {
       }
     }
 
-    const char ch = r->buffer[r->buf_begin];
-    ++r->buf_begin;
+    const char ch = r->buffer[r->buf_begin + i];
     if (ch == '\n' && !carriage) {
       goto on_error;
     }
@@ -84,21 +82,23 @@ struct string_t readline(struct reader_t *r, size_t maxchars) {
     }
 
     if (ch == '\n' && carriage) {
-      string_pop(&line); // Remove the CR
-      return line;
+      goto on_success;
     }
 
     if (ch == '\r') {
       carriage = true;
     }
-
-    string_append(&line, ch);
   }
 
 on_error:
   r->error = true;
-  string_free(&line);
   return null_string();
+
+on_success: {
+  struct string_t str = new_string(r->buffer + r->buf_begin, i);
+  r->buf_begin += i + 1;
+  return str;
+}
 }
 
 int http_parse_first_line(struct reader_t *r, struct request_t *req) {
@@ -128,7 +128,7 @@ int http_parse_first_line(struct reader_t *r, struct request_t *req) {
   // Parse protocol
   ++pos1;
   len = line.len - pos1;
-  if(len < 1) {
+  if (len < 1) {
     return -3;
   }
 
@@ -202,14 +202,13 @@ struct request_t *parse_request(int fd) {
     goto on_error;
   }
 
-  if(http_parse_headers(&r, req) != 0) {
+  if (http_parse_headers(&r, req) != 0) {
     goto on_error;
   }
 
   return req;
 
 on_error:
-  free_request(req);
   req->error = true;
   return req;
 }
