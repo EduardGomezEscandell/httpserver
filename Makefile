@@ -1,9 +1,11 @@
 SOURCES := $(shell find src -name '*.c')
 CC ?= gcc
+FLAGS ?= -g -O0 -Wall -Wpedantic -Werror -Wno-strict-prototypes
+SANITIZE ?= -fsanitize=address -fsanitize=undefined
 
 build: main.c $(SOURCES) 
 	mkdir -p build
-	$(CC) -g -Wall -Wpedantic -Wno-strict-prototypes -Werror main.c $(SOURCES) -o build/server || $(MAKE) clean
+	$(CC) $(FLAGS) $(SANITIZE) main.c $(SOURCES) -o build/server || ($(MAKE) clean && false)
 
 .PHONY: clean
 clean:
