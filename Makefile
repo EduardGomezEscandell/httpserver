@@ -1,8 +1,9 @@
 SOURCES := $(shell find src -name '*.c')
+CC ?= gcc
 
 build: main.c $(SOURCES) 
 	mkdir -p build
-	gcc -g -Wall -Wpedantic -Werror main.c $(SOURCES) -o build/server || $(MAKE) clean
+	$(CC) -g -Wall -Wpedantic -Wno-strict-prototypes -Werror main.c $(SOURCES) -o build/server || $(MAKE) clean
 
 .PHONY: clean
 clean:
