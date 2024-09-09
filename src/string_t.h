@@ -10,9 +10,11 @@ struct string_t {
 
 struct string_t null_string();
 struct string_t new_string(const char *cstr, size_t len);
+#define new_string_literal(cstr) new_string(cstr, sizeof(cstr) - 1);
 
 int string_reserve(struct string_t *str, size_t newcap);
 int string_append(struct string_t *str, const char *cstr, size_t len);
+int s_printf(struct string_t *str, const char *fmt, ...);
 
 int string_push(struct string_t *str, char c);
 void string_pop(struct string_t *str);

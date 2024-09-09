@@ -19,3 +19,4 @@
   } while (0)
 
 #define fprintln(fd, msg) write(fd, msg "\n", sizeof(msg))
+#define dupl_string_literal(literal) strndup(literal, sizeof(literal))

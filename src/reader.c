@@ -97,7 +97,7 @@ struct string_t reader_readline(struct reader_t *r, size_t maxchars) {
   struct string_t str = null_string();
 
   for (size_t ibuf = 0; i < maxchars; ++i, ++ibuf) {
-    if (ibuf == r->buf_end) {
+    if (r->buf_begin + ibuf >= r->buf_end) {
       string_append(&str, reader_bufbegin(r), ibuf);
       reader_advance(r, ibuf);
 
@@ -109,6 +109,8 @@ struct string_t reader_readline(struct reader_t *r, size_t maxchars) {
       if (reader_empty(r)) {
         return str;
       }
+
+      ibuf = 0;
     }
 
     const char ch = r->buffer[r->buf_begin + ibuf];

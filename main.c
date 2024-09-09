@@ -1,7 +1,5 @@
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 #include <netinet/in.h>
@@ -10,7 +8,20 @@
 
 #include "src/defines.h"
 #include "src/http.h"
+#include "src/httpcodes.h"
 #include "src/net.h"
+#include "src/string_t.h"
+
+void handle_home(struct response_t *res, struct request_t *req) {
+  res->status = HTTP_STATUS_OK;
+  headers_append(&res->headers, "Content-Type", "text/html");
+  res->body = new_string_literal("<html><title>Home</title><body><h1>Home page</h1><p>Welcome to the home page!</p></body></html>");
+}
+
+void handle_root(struct response_t *res, struct request_t *req) {
+  res->status = HTTP_STATUS_PERMANENT_REDIRECT;
+  headers_append(&res->headers, "Location", "/home");
+}
 
 int main() {
   struct sockaddr_in const addr = {
@@ -19,47 +30,27 @@ int main() {
       .sin_addr = ip_address(127, 0, 0, 1),
   };
 
-  int sockfd = bind_and_listen(&addr);
+  struct httpserver *server = new_httpserver();
 
-  while (true) {
-    int fd = accept(sockfd, NULL, NULL);
-    if (fd < 0) {
-      exiterr(2, "could not accept");
-    }
+  int sockfd = bind_and_listen(&addr, 1024);
+  if (sockfd < 0) {
+    exiterr(1, "could not bind/listen");
+  }
 
-    struct request_t *req = parse_request(fd);
+  if (httpserver_register(server, "GET", "/home", handle_home) != 0) {
+    exiterr(1, "could not register handler");
+  }
 
-    request_print(req);
-    if (req->error) {
-      fprintln(fd, "HTTP/1.1 400 Bad Request");
-      fprintln(fd, "");
-      goto on_close;
-    }
+  if (httpserver_register(server, "GET", "/", handle_root) != 0) {
+    exiterr(1, "could not register handler");
+  }
 
-    if (strcmp(req->type, "GET") != 0) {
-      fprintln(fd, "HTTP/1.1 405 Method Not Allowed");
-      fprintln(fd, "Content-Length: 0");
-      fprintln(fd, "");
-      goto on_close;
-    }
-
-    if (strcmp(req->path, "/") != 0) {
-      fprintln(fd, "HTTP/1.1 404 Not Found");
-      fprintln(fd, "");
-      goto on_close;
-    }
-
-    fprintln(fd, "HTTP/1.1 200 OK");
-    fprintln(fd, "Content-Type: text/plain");
-    fprintln(fd, "");
-    fprintln(fd, "Hello, World!");
-    goto on_close;
-
-  on_close:
-    free_request(req);
-    close(fd);
+  if (httpserver_serve(server, sockfd) != 0) {
+    exiterr(1, "could not serve");
   }
 
   printf("Closing\n");
+
+  httpserver_close(server);
   close(sockfd);
 }

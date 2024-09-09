@@ -31,7 +31,7 @@ struct in_addr ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
   return (struct in_addr){.s_addr = d << 24 | c << 16 | b << 8 | a};
 }
 
-int bind_and_listen(struct sockaddr_in const *const addr) {
+int bind_and_listen(struct sockaddr_in const *const addr, size_t const maxqueue) {
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
   if (sockfd < 0) {
     exiterr(1, "Could not create socket\n");
@@ -44,7 +44,7 @@ int bind_and_listen(struct sockaddr_in const *const addr) {
     exiterrno(1, "could not bind");
   }
 
-  if (listen(sockfd, 0) != 0) {
+  if (listen(sockfd, maxqueue) != 0) {
     exiterrno(1, "could not listen\n");
   }
 
