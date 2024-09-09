@@ -61,6 +61,7 @@ int http_parse_first_line(struct reader_t *r, struct request_t *req) {
   ++pos0;
   int pos1 = string_find_after(line, ' ', pos0);
   if (pos1 == -1 || pos1 == pos0) {
+    string_free(&line);
     return -2;
   }
 
@@ -73,6 +74,7 @@ int http_parse_first_line(struct reader_t *r, struct request_t *req) {
   ++pos1;
   len = line.len - pos1;
   if (len < 1) {
+    string_free(&line);
     return -3;
   }
 
@@ -80,6 +82,7 @@ int http_parse_first_line(struct reader_t *r, struct request_t *req) {
   memcpy(req->protocol, line.data + pos1, len);
   req->protocol[len] = '\0';
 
+  string_free(&line);
   return 0;
 }
 
@@ -92,17 +95,20 @@ int http_parse_headers(struct reader_t *r, struct request_t *req) {
     }
 
     if (line.len == 0) {
+      string_free(&line);
       return 0;
     }
 
     int pos = string_find(line, ':');
     if (pos == -1) {
+      string_free(&line);
       return -3;
     }
 
     // "key: value"
     //     ^pos
     if (pos == 0 || pos > line.len - 2 || line.data[pos + 1] != ' ') {
+      string_free(&line);
       return -3;
     }
 
@@ -113,6 +119,7 @@ int http_parse_headers(struct reader_t *r, struct request_t *req) {
     value[line.len - pos - 2] = '\0';
 
     headers_append(&req->headers, key, value);
+    string_free(&line);
   }
 
   return -1;
@@ -326,27 +333,28 @@ httpserver_callback mux_get(struct multiplexer_t *mux, char *method,
 
 int httpserver_register(struct httpserver *server, char const *method,
                         char const *path, httpserver_callback callback) {
-  struct handler_t *handler = malloc(sizeof(*handler));
+  struct handler_t handler = {
+      .path = NULL,
+      .method = NULL,
+      .handler = NULL,
+  };
 
-  handler->path = strndup(path, 2048);
+  handler.path = strndup(path, 2048);
   if (path == NULL) {
-    free(handler);
     return -1;
   }
 
-  handler->method = strndup(method, 32);
+  handler.method = strndup(method, 32);
   if (path == NULL) {
-    free(handler->path);
-    free(handler);
+    free(handler.path);
     return -1;
   }
 
-  handler->handler = callback;
+  handler.handler = callback;
 
-  if (mux_append(&server->multiplexer, handler) != 0) {
-    free(handler->path);
-    free(handler->method);
-    free(handler);
+  if (mux_append(&server->multiplexer, &handler) != 0) {
+    free(handler.path);
+    free(handler.method);
     return -1;
   }
 

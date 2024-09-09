@@ -82,7 +82,6 @@ void string_pop(struct string_t *str) {
 
 void string_free(struct string_t *str) {
   free(str->data);
-  free(str);
 }
 
 char *to_cstr(struct string_t *str) {
