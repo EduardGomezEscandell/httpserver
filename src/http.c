@@ -138,6 +138,7 @@ struct request_t *parse_request(int fd) {
   struct request_t *req = malloc(sizeof(*req));
   req->method = NULL;
   req->protocol = NULL;
+  req->path = NULL;
   req->headers = (struct headers_t){
       .data = NULL,
       .len = 0,
