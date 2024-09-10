@@ -15,7 +15,9 @@
 void handle_home(struct response_t *res, struct request_t *req) {
   res->status = HTTP_STATUS_OK;
   headers_append(&res->headers, "Content-Type", "text/html");
-  res->body = new_string_literal("<html><title>Home</title><body><h1>Home page</h1><p>Welcome to the home page!</p></body></html>");
+  res->body = new_string_literal(
+      "<html><title>Home</title><body><h1>Home page</h1><p>Welcome to the home "
+      "page!</p></body></html>");
 }
 
 void handle_root(struct response_t *res, struct request_t *req) {
@@ -26,7 +28,7 @@ void handle_root(struct response_t *res, struct request_t *req) {
 void handler_parrot(struct response_t *res, struct request_t *req) {
   res->status = HTTP_STATUS_OK;
   char buff[1024];
-  if(headers_get(&req->headers, buff, sizeof(buff), "Content-Type") == 0) {
+  if (headers_get(&req->headers, buff, sizeof(buff), "Content-Type") == 0) {
     headers_append(&res->headers, "Content-Type", buff);
   }
 
@@ -58,6 +60,11 @@ int main() {
   if (httpserver_register(server, "POST", "/parrot", handler_parrot) != 0) {
     exiterr(1, "could not register parrot handler");
   }
+
+  char fmt[128];
+  format_address(fmt, sizeof(fmt), &addr);
+  printf("Listening to %s\n", fmt);
+  fflush(stdout);
 
   if (httpserver_serve(server, sockfd) != 0) {
     exiterr(1, "could not serve");
