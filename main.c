@@ -19,7 +19,7 @@ void handle_home(struct response_t *res, struct request_t *req) {
 }
 
 void handle_root(struct response_t *res, struct request_t *req) {
-  res->status = HTTP_STATUS_PERMANENT_REDIRECT;
+  res->status = HTTP_STATUS_MOVED_PERMANENTLY;
   headers_append(&res->headers, "Location", "/home");
 }
 

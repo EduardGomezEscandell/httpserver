@@ -408,10 +408,18 @@ int httpserver_serve(struct httpserver *server, int sockfd) {
 
 void callback404(struct response_t *res, struct request_t *req) {
   res->status = 404;
+  if (strncmp(req->method, "HEAD", sizeof("HEAD")) == 0) {
+    // HEAD is not allowed to have a body
+    return;
+  }
   res->body = new_string_literal("404 Not Found\n");
 }
 
 void callback405(struct response_t *res, struct request_t *req) {
   res->status = 405;
+  if (strncmp(req->method, "HEAD", sizeof("HEAD")) == 0) {
+    // HEAD is not allowed to have a body
+    return;
+  }
   res->body = new_string_literal("405 Method Not Allowed\n");
 }
