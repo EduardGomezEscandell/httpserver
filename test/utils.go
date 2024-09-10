@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 )
@@ -16,7 +15,6 @@ func RunServer(ctx context.Context) (func() error, error) {
 	var stderr bytes.Buffer
 
 	stdout, w := io.Pipe()
-	r := io.TeeReader(stdout, os.Stderr)
 
 	cmd := exec.CommandContext(ctx, "../build/server")
 	cmd.Stdout = w
@@ -26,7 +24,7 @@ func RunServer(ctx context.Context) (func() error, error) {
 		return nil, err
 	}
 
-	if err := waitServerReady(ctx, r); err != nil {
+	if err := waitServerReady(ctx, stdout); err != nil {
 		return nil, err
 	}
 
