@@ -14,3 +14,7 @@ clean:
 .PHONY: run
 run: build
 	./build/server
+
+.PHONY: test
+test: build
+	cd test && go test -v
