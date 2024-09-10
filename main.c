@@ -23,6 +23,16 @@ void handle_root(struct response_t *res, struct request_t *req) {
   headers_append(&res->headers, "Location", "/home");
 }
 
+void handler_parrot(struct response_t *res, struct request_t *req) {
+  res->status = HTTP_STATUS_OK;
+  char buff[1024];
+  if(headers_get(&req->headers, buff, sizeof(buff), "Content-Type") == 0) {
+    headers_append(&res->headers, "Content-Type", buff);
+  }
+
+  res->body = reader_read(&req->body, request_content_length(req));
+}
+
 int main() {
   struct sockaddr_in const addr = {
       .sin_family = AF_INET,
@@ -38,11 +48,15 @@ int main() {
   }
 
   if (httpserver_register(server, "GET", "/home", handle_home) != 0) {
-    exiterr(1, "could not register handler");
+    exiterr(1, "could not register home handler");
   }
 
   if (httpserver_register(server, "GET", "/", handle_root) != 0) {
-    exiterr(1, "could not register handler");
+    exiterr(1, "could not register root handler");
+  }
+
+  if (httpserver_register(server, "POST", "/parrot", handler_parrot) != 0) {
+    exiterr(1, "could not register parrot handler");
   }
 
   if (httpserver_serve(server, sockfd) != 0) {

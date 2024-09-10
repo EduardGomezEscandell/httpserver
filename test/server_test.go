@@ -1,7 +1,9 @@
 package test_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"path"
 	"testing"
@@ -60,7 +62,62 @@ func TestGet(t *testing.T) {
 	}
 }
 
-func TestNotGET(t *testing.T) {
+func TestPost(t *testing.T) {
+	ctx := context.Background()
+
+	testCases := map[string]struct {
+		path     string
+		body     []byte
+		want     int
+		wantBody []byte
+	}{
+		"Good address with no body":     {path: "/parrot", body: []byte{}, wantBody: []byte{}},
+		"Good address with text body":   {path: "/parrot", body: []byte("this is just some sample text")},
+		"Good address with binary body": {path: "/parrot", body: []byte{4, 3, 2, 1, 0, 1, 2, 3}},
+
+		"Bad address":                       {path: "/not-found", want: http.StatusNotFound, wantBody: []byte("404 Not Found\n")},
+		"Address where POST is not allowed": {path: "/home", body: []byte("this is just some sample text"), want: http.StatusMethodNotAllowed, wantBody: []byte("405 Method Not Allowed\n")},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Defaults
+			if tc.want == 0 {
+				tc.want = http.StatusOK
+			}
+			if tc.wantBody == nil {
+				tc.wantBody = tc.body
+			}
+
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			close, err := test.RunServer(ctx)
+			require.NoError(t, err, "Server should start without issues")
+			defer func() {
+				if err := close(); err != nil {
+					t.Logf("Error closing server: %v", err)
+				}
+			}()
+
+			req, err := http.NewRequestWithContext(ctx,
+				http.MethodPost,
+				"http://"+path.Join(URL, tc.path),
+				bytes.NewReader(tc.body))
+			require.NoError(t, err, "Request should be created without issues")
+
+			resp, err := (&http.Client{}).Do(req)
+			require.NoError(t, err, "Request should be executed without issues")
+			require.Equal(t, tc.want, resp.StatusCode, "Status code should be as expected")
+
+			bod, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantBody, bod, "Body should be as expected")
+		})
+	}
+}
+
+func TestBadMethod(t *testing.T) {
 	ctx := context.Background()
 
 	testCases := map[string]struct {
@@ -68,13 +125,11 @@ func TestNotGET(t *testing.T) {
 		method string
 		want   int
 	}{
-		"Wrong address is more important than method": {path: "/not-found", method: http.MethodPost, want: http.StatusNotFound},
-		"POST is not implemented":                     {path: "/home", method: http.MethodPost, want: http.StatusMethodNotAllowed},
-		"PUT is not implemented":                      {path: "/home", method: http.MethodPut, want: http.StatusMethodNotAllowed},
-		"PATCH is not implemented":                    {path: "/home", method: http.MethodPatch, want: http.StatusMethodNotAllowed},
-		"DELETE is not implemented":                   {path: "/home", method: http.MethodDelete, want: http.StatusMethodNotAllowed},
-		"OPTIONS is not implemented":                  {path: "/home", method: http.MethodOptions, want: http.StatusMethodNotAllowed},
-		"HEAD is not implemented":                     {path: "/home", method: http.MethodHead, want: http.StatusMethodNotAllowed},
+		"PUT is not implemented":     {path: "/home", method: http.MethodPut, want: http.StatusMethodNotAllowed},
+		"PATCH is not implemented":   {path: "/home", method: http.MethodPatch, want: http.StatusMethodNotAllowed},
+		"DELETE is not implemented":  {path: "/home", method: http.MethodDelete, want: http.StatusMethodNotAllowed},
+		"OPTIONS is not implemented": {path: "/home", method: http.MethodOptions, want: http.StatusMethodNotAllowed},
+		"HEAD is not implemented":    {path: "/home", method: http.MethodHead, want: http.StatusMethodNotAllowed},
 	}
 
 	for name, tc := range testCases {
@@ -93,14 +148,7 @@ func TestNotGET(t *testing.T) {
 			req, err := http.NewRequestWithContext(ctx, tc.method, "http://"+path.Join(URL, tc.path), nil)
 			require.NoError(t, err, "Request should be created without issues")
 
-			client := &http.Client{
-				CheckRedirect: func(req *http.Request, via []*http.Request) error {
-					// Prevent following redirects
-					return http.ErrUseLastResponse
-				},
-			}
-
-			resp, err := client.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err, "Request should be executed without issues")
 			require.Equal(t, tc.want, resp.StatusCode, "Status code should be as expected")
 		})

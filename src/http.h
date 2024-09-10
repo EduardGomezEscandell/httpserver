@@ -14,7 +14,10 @@ struct headers_t {
   size_t cap;
 };
 
-int headers_append(struct headers_t *headers, char const* key, char const* value);
+int headers_append(struct headers_t *headers, char const *key,
+                   char const *value);
+int headers_get(struct headers_t const *headers, char *buff, size_t buffsize,
+                char const *key);
 
 struct request_t {
   char *method;
@@ -25,9 +28,9 @@ struct request_t {
   struct reader_t body;
 };
 
-
 struct request_t *parse_request(int fd);
 void free_request(struct request_t *req);
+size_t request_content_length(struct request_t const *req);
 void request_print(struct request_t *req);
 
 struct response_t {
@@ -43,9 +46,9 @@ int response_close(struct response_t *res);
 void response_free(struct response_t *res);
 
 struct handler_t {
-  char* path;
-  char* method;
-  void (*handler)(struct response_t*, struct request_t*);
+  char *path;
+  char *method;
+  void (*handler)(struct response_t *, struct request_t *);
 };
 
 struct multiplexer_t {
@@ -59,10 +62,11 @@ struct httpserver {
   struct multiplexer_t multiplexer;
 };
 
-typedef void (*httpserver_callback)(struct response_t*, struct request_t*);
+typedef void (*httpserver_callback)(struct response_t *, struct request_t *);
 
 struct httpserver *new_httpserver();
-int httpserver_register(struct httpserver *server, char const* method, char const* path, httpserver_callback handler);
+int httpserver_register(struct httpserver *server, char const *method,
+                        char const *path, httpserver_callback handler);
 int httpserver_serve(struct httpserver *server, int sockfd);
 void httpserver_close(struct httpserver *server);
 

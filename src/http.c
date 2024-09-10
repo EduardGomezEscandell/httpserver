@@ -37,6 +37,19 @@ int headers_append(struct headers_t *headers, char const *const key,
   return 0;
 }
 
+int headers_get(struct headers_t const *const headers, char *buff,
+                size_t buffsize, char const *const key) {
+  assert(buff != NULL);
+
+  for (size_t i = 0; i < headers->len; ++i) {
+    if (strcmp(headers->data[i].key, key) == 0) {
+      strncpy(buff, headers->data[i].value, buffsize);
+      return 0;
+    }
+  }
+  return -1;
+}
+
 void headers_free(struct headers_t *headers) {
   for (size_t i = 0; i < headers->len; ++i) {
     free(headers->data[i].key);
@@ -125,13 +138,13 @@ int http_parse_headers(struct reader_t *r, struct request_t *req) {
   return -1;
 }
 
-size_t request_content_length(struct request_t *req) {
-  for (size_t i = 0; i < req->headers.len; ++i) {
-    if (strcmp(req->headers.data[i].key, "Content-Length") == 0) {
-      return atoll(req->headers.data[i].value);
-    }
+size_t request_content_length(struct request_t const *const req) {
+  char buff[32];
+  if (headers_get(&req->headers, buff, sizeof(buff), "Content-Length") != 0) {
+    return 0;
   }
-  return 0;
+
+  return atoll(buff);
 }
 
 struct request_t *parse_request(int fd) {
