@@ -143,12 +143,6 @@ struct request_t *parse_request(int fd) {
       .data = NULL,
       .len = 0,
   };
-  req->body = (struct reader_t){
-      .fd = fd,
-      .buf_begin = 0,
-      .buf_end = 0,
-      .error = false,
-  };
   req->error = false;
 
   // Not really the body yet, will be once we read over the headers
