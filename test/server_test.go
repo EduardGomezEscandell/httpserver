@@ -30,11 +30,12 @@ func TestGet(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 
 			close, err := test.RunServer(ctx)
 			require.NoError(t, err, "Server should start without issues")
+
 			defer func() {
 				if err := close(); err != nil {
 					t.Logf("Error closing server: %v", err)
