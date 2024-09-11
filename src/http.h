@@ -43,7 +43,7 @@ void request_print(struct request_t *req);
 struct response_t {
   int fd;
   char *protocol;
-  enum httpcodes status;
+  enum http_status status;
   struct headers_t headers;
   struct string_t body;
 };
