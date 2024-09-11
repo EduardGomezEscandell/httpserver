@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"testing"
 	"time"
 
@@ -15,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const URL = "localhost:8080"
-
 func TestGet(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	testCases := map[string]struct {
@@ -32,14 +31,19 @@ func TestGet(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			close, err := test.RunServer(ctx)
+			port := test.ReservePort()
+			addr := fmt.Sprintf("http://localhost:%d", port)
+
+			close, err := test.RunServer(ctx, port)
 			require.NoError(t, err, "Server should start without issues")
 			defer close(t.Logf)
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+path.Join(URL, tc.path), nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, addr+tc.path, nil)
 			require.NoError(t, err, "Request should be created without issues")
 
 			client := &http.Client{
@@ -64,6 +68,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestPost(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	testCases := map[string]struct {
@@ -83,6 +88,8 @@ func TestPost(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			// Defaults
 			if tc.want == 0 {
 				tc.want = http.StatusOK
@@ -94,14 +101,14 @@ func TestPost(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			close, err := test.RunServer(ctx)
+			port := test.ReservePort()
+			addr := fmt.Sprintf("http://localhost:%d", port)
+
+			close, err := test.RunServer(ctx, port)
 			require.NoError(t, err, "Server should start without issues")
 			defer close(t.Logf)
 
-			req, err := http.NewRequestWithContext(ctx,
-				http.MethodPost,
-				"http://"+path.Join(URL, tc.path),
-				bytes.NewReader(tc.body))
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr+tc.path, bytes.NewReader(tc.body))
 			require.NoError(t, err, "Request should be created without issues")
 
 			resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
@@ -118,6 +125,7 @@ func TestPost(t *testing.T) {
 }
 
 func TestBadMethod(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	testCases := map[string]struct {
@@ -134,14 +142,19 @@ func TestBadMethod(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			close, err := test.RunServer(ctx)
+			port := test.ReservePort()
+			addr := fmt.Sprintf("http://localhost:%d", port)
+
+			close, err := test.RunServer(ctx, port)
 			require.NoError(t, err, "Server should start without issues")
 			defer close(t.Logf)
 
-			req, err := http.NewRequestWithContext(ctx, tc.method, "http://"+path.Join(URL, tc.path), nil)
+			req, err := http.NewRequestWithContext(ctx, tc.method, addr+tc.path, nil)
 			require.NoError(t, err, "Request should be created without issues")
 
 			resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
@@ -154,10 +167,16 @@ func TestBadMethod(t *testing.T) {
 }
 
 func TestMultithreding(t *testing.T) {
+	// This test is not parallel because it times the response time,
+	// and it would be hard to make it deterministic with parallel tests
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stop, err := test.RunServer(ctx)
+	port := test.ReservePort()
+	addr := fmt.Sprintf("http://localhost:%d", port)
+
+	stop, err := test.RunServer(ctx, port)
 	require.NoError(t, err, "Server should start without issues")
 	defer stop(t.Logf)
 
@@ -168,7 +187,7 @@ func TestMultithreding(t *testing.T) {
 
 	for i := range nmessages {
 		go func() {
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080/sleep", nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, addr+"/sleep", nil)
 			if err != nil {
 				ch <- fmt.Errorf("request %d should be created without issues: %v", i, err)
 				return

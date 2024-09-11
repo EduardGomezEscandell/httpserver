@@ -9,16 +9,31 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
-func RunServer(ctx context.Context) (func(func(string, ...any)) error, error) {
+var (
+	lastPort uint = 15000
+	mu       sync.Mutex
+)
+
+func ReservePort() uint {
+	mu.Lock()
+	defer mu.Unlock()
+
+	p := lastPort
+	lastPort++
+	return p
+}
+
+func RunServer(ctx context.Context, port uint) (func(func(string, ...any)) error, error) {
 	r, stdout := io.Pipe()
 
 	var errR bytes.Buffer
 	initR := io.TeeReader(r, &errR)
 
-	cmd := exec.CommandContext(ctx, "../build/server")
+	cmd := exec.CommandContext(ctx, "../build/server", "--port", fmt.Sprint(port))
 	cmd.Stdout = stdout
 	cmd.Stderr = stdout
 
