@@ -74,6 +74,7 @@ func TestPost(t *testing.T) {
 	}{
 		"Good address with no body":     {path: "/parrot", body: []byte{}, wantBody: []byte{}},
 		"Good address with text body":   {path: "/parrot", body: []byte("this is just some sample text")},
+		"Good address with long body":   {path: "/parrot", body: bytes.Repeat([]byte("abcdefg"), 8*1024)},
 		"Good address with binary body": {path: "/parrot", body: []byte{4, 3, 2, 1, 0, 1, 2, 3}},
 
 		"Bad address":                       {path: "/not-found", want: http.StatusNotFound, wantBody: []byte("404 Not Found\n")},

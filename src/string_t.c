@@ -15,6 +15,9 @@ struct string_t null_string() {
 
 struct string_t new_string(const char *cstr, size_t len) {
   struct string_t str = null_string();
+  if (len == 0) {
+    return str;
+  }
 
   if(string_reserve(&str, len) != 0) {
     return null_string();
