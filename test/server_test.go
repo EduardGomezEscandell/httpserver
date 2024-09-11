@@ -30,22 +30,18 @@ func TestGet(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(ctx, time.Second)
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
 			close, err := test.RunServer(ctx)
 			require.NoError(t, err, "Server should start without issues")
-
-			defer func() {
-				if err := close(); err != nil {
-					t.Logf("Error closing server: %v", err)
-				}
-			}()
+			defer close(t.Logf)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+path.Join(URL, tc.path), nil)
 			require.NoError(t, err, "Request should be created without issues")
 
 			client := &http.Client{
+				Timeout: 5 * time.Second,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
 					// Prevent following redirects
 					return http.ErrUseLastResponse
@@ -59,6 +55,8 @@ func TestGet(t *testing.T) {
 			for k, v := range tc.wantHeaders {
 				require.Equal(t, v, resp.Header.Get(k), "Header should be as expected")
 			}
+
+			require.NoError(t, close(t.Logf), "Server should stop without issues")
 		})
 	}
 }
@@ -91,16 +89,12 @@ func TestPost(t *testing.T) {
 				tc.wantBody = tc.body
 			}
 
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
 			close, err := test.RunServer(ctx)
 			require.NoError(t, err, "Server should start without issues")
-			defer func() {
-				if err := close(); err != nil {
-					t.Logf("Error closing server: %v", err)
-				}
-			}()
+			defer close(t.Logf)
 
 			req, err := http.NewRequestWithContext(ctx,
 				http.MethodPost,
@@ -108,13 +102,15 @@ func TestPost(t *testing.T) {
 				bytes.NewReader(tc.body))
 			require.NoError(t, err, "Request should be created without issues")
 
-			resp, err := (&http.Client{}).Do(req)
+			resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
 			require.NoError(t, err, "Request should be executed without issues")
 			require.Equal(t, tc.want, resp.StatusCode, "Status code should be as expected")
 
 			bod, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantBody, bod, "Body should be as expected")
+
+			require.NoError(t, close(t.Logf), "Server should stop without issues")
 		})
 	}
 }
@@ -136,23 +132,21 @@ func TestBadMethod(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
 			close, err := test.RunServer(ctx)
 			require.NoError(t, err, "Server should start without issues")
-			defer func() {
-				if err := close(); err != nil {
-					t.Logf("Error closing server: %v", err)
-				}
-			}()
+			defer close(t.Logf)
 
 			req, err := http.NewRequestWithContext(ctx, tc.method, "http://"+path.Join(URL, tc.path), nil)
 			require.NoError(t, err, "Request should be created without issues")
 
-			resp, err := (&http.Client{}).Do(req)
+			resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
 			require.NoError(t, err, "Request should be executed without issues")
 			require.Equal(t, tc.want, resp.StatusCode, "Status code should be as expected")
+
+			require.NoError(t, close(t.Logf), "Server should stop without issues")
 		})
 	}
 }

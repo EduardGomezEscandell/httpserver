@@ -1,5 +1,9 @@
 #pragma once
 
+#include <stdbool.h>
+
+#include <sys/signal.h>
+
 #include "defines.h"
 #include "httpcodes.h"
 #include "string_t.h"
@@ -70,16 +74,31 @@ struct multiplexer_t {
 };
 
 struct httpserver {
+  // Multiplexer for the server, mapping paths to handlers
   struct multiplexer_t multiplexer;
+  
+  // Mask with signals that are handler externally
+  sigset_t interruptmask;
 };
 
 typedef void (*httpserver_callback)(struct response_t *, struct request_t *);
 
+// Create a new http server
 struct httpserver *new_httpserver();
+
+// Register a handler for the given method and path
+// Either may be "*" to match any method or path
 int httpserver_register(struct httpserver *server, char const *method,
                         char const *path, httpserver_callback handler);
-int httpserver_serve(struct httpserver *server, int sockfd);
-void httpserver_close(struct httpserver *server);
+
+// Serve the http server on the given socket file descriptor
+// If interrupt is not NULL, it'll be used to stop the server when set to true
+int httpserver_serve(struct httpserver *server, int sockfd,
+                     volatile bool const *interrupt);
+
+// Close the http server and free its resources
+// Does not close the socket file descriptor
+void httpserver_free(struct httpserver *server);
 
 void callback400(struct response_t *res, struct request_t *req);
 void callback404(struct response_t *res, struct request_t *req);

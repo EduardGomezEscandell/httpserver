@@ -1,4 +1,7 @@
+#include <stdio.h>
 #include <unistd.h>
+
+#include <sys/signal.h>
 
 #include "src/http.h"
 #include "src/net.h"
@@ -25,6 +28,9 @@ void handler_parrot(struct response_t *res, struct request_t *req) {
 
   res->body = new_string(req->body, req->content_length);
 }
+
+volatile bool interrupted = false;
+void interrupt_handler(int sig) { interrupted = true; }
 
 int main() {
   struct sockaddr_in const addr = {
@@ -57,12 +63,20 @@ int main() {
   printf("Listening to %s\n", fmt);
   fflush(stdout);
 
-  if (httpserver_serve(server, sockfd) != 0) {
-    exiterr(1, "could not serve");
+  signal(SIGINT, interrupt_handler);
+  signal(SIGTERM, interrupt_handler);
+  signal(SIGQUIT, interrupt_handler);
+  sigaddset(&server->interruptmask, SIGINT);
+  sigaddset(&server->interruptmask, SIGTERM);
+  sigaddset(&server->interruptmask, SIGQUIT);
+
+  if (httpserver_serve(server, sockfd, &interrupted) != 0) {
+    exiterr(1, "could not serve\n");
   }
 
-  printf("Closing\n");
-
-  httpserver_close(server);
+  httpserver_free(server);
   close(sockfd);
+
+  printf("Exited\n");
+  return 0;
 }

@@ -3,6 +3,12 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#define __USE_GNU // Required for ppoll
+#include <sys/poll.h>
+#undef __USE_GNU
+
+#include <sys/signal.h>
+#include <sys/signal.h>
 #include <sys/socket.h>
 
 #include "http.h"
@@ -360,6 +366,8 @@ struct httpserver *new_httpserver() {
       .len = 0,
       .cap = 0,
   };
+
+  sigemptyset(&server->interruptmask);
   return server;
 }
 
@@ -442,16 +450,43 @@ int httpserver_register(struct httpserver *server, char const *method,
   return 0;
 }
 
-void httpserver_close(struct httpserver *server) {
+void httpserver_free(struct httpserver *server) {
   mux_free(&server->multiplexer);
   free(server);
 }
 
-int httpserver_serve(struct httpserver *server, int sockfd) {
-  for (;;) {
-    int fd = accept(sockfd, NULL, NULL);
+int httpserver_wait_accept(sigset_t const sigmask, int const sockfd) {
+  struct pollfd fds = {
+      .fd = sockfd,
+      .events = POLLIN,
+  };
+
+  struct timespec const timeout = {
+      .tv_sec = 1,
+      .tv_nsec = 0,
+  };
+
+  int ret = ppoll(&fds, 1, &timeout, &sigmask);
+  if (ret <= 0) {
+    return ret;
+  }
+
+  return accept(sockfd, NULL, NULL);
+}
+
+int httpserver_serve(struct httpserver *const server, const int sockfd,
+                     volatile bool const *interrupt) {
+  bool dummy = false;
+  if (interrupt == NULL) {
+    interrupt = &dummy;
+  }
+
+  while (!*interrupt) {
+    int fd = httpserver_wait_accept(server->interruptmask, sockfd);
     if (fd < 0) {
-      return 1;
+      return -1;
+    } else if (fd == 0) {
+      continue;
     }
 
     struct request_t *req = parse_request(fd);
