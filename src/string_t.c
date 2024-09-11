@@ -1,6 +1,3 @@
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "string_t.h"

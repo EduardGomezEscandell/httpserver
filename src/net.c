@@ -1,10 +1,4 @@
 #include <assert.h>
-#include <stdio.h>
-#include <unistd.h>
-
-#include <netinet/in.h>
-#include <sys/sendfile.h>
-#include <sys/socket.h>
 
 #include "defines.h"
 #include "net.h"

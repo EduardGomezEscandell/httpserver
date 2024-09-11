@@ -1,18 +1,11 @@
 #include <assert.h>
-#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>
 #include <unistd.h>
-
-#include <stdlib.h>
 
 #include <sys/socket.h>
 
-#include "defines.h"
 #include "http.h"
-#include "httpcodes.h"
-#include "string_t.h"
 
 // Increase the capacity of the headers_t to make sure one more item fits.
 int headers_inc_cap(struct headers_t *headers) {
@@ -126,11 +119,11 @@ char *http_parse_headers(struct request_t *req, char *it) {
     if (*it == '\r') {
 
       ++it;
-      if(it == end) {
+      if (it == end) {
         return NULL;
       }
 
-      if(*it != '\n') {
+      if (*it != '\n') {
         return NULL;
       }
 
@@ -192,7 +185,8 @@ int request_init_body(struct request_t *req, int fd, char *it) {
     return 0;
   }
 
-  const size_t pool_slack = request_alloc_size - (it - req->pool) - 1; // -1 for null terminator
+  const size_t pool_slack =
+      request_alloc_size - (it - req->pool) - 1; // -1 for null terminator
 
   // Extra byte for null terminator
   // -> ignored in binary data as it is beyond the content length

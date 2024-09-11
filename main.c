@@ -1,16 +1,7 @@
-#include <stdbool.h>
-#include <stdio.h>
 #include <unistd.h>
 
-#include <netinet/in.h>
-#include <sys/sendfile.h>
-#include <sys/socket.h>
-
-#include "src/defines.h"
 #include "src/http.h"
-#include "src/httpcodes.h"
 #include "src/net.h"
-#include "src/string_t.h"
 
 void handle_home(struct response_t *res, struct request_t *req) {
   res->status = HTTP_STATUS_OK;

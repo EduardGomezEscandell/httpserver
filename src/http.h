@@ -1,4 +1,4 @@
-#include <stdio.h>
+#pragma once
 
 #include "defines.h"
 #include "httpcodes.h"
@@ -14,7 +14,6 @@ struct headers_t {
   size_t len;
   size_t cap;
 };
-
 
 int headers_get(struct headers_t const *headers, char *buff, size_t buffsize,
                 char const *key);
