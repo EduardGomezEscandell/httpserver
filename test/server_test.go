@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"path"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/EduardGomezEscandell/httpserver/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -149,4 +151,50 @@ func TestBadMethod(t *testing.T) {
 			require.NoError(t, close(t.Logf), "Server should stop without issues")
 		})
 	}
+}
+
+func TestMultithreding(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stop, err := test.RunServer(ctx)
+	require.NoError(t, err, "Server should start without issues")
+	defer stop(t.Logf)
+
+	ch := make(chan error)
+	const nmessages = 32
+
+	started := time.Now()
+
+	for i := range nmessages {
+		go func() {
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080/sleep", nil)
+			if err != nil {
+				ch <- fmt.Errorf("request %d should be created without issues: %v", i, err)
+				return
+			}
+
+			resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+			if err != nil {
+				ch <- fmt.Errorf("request %d should be executed without issues: %v", i, err)
+				return
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				ch <- fmt.Errorf("request %d: status code should be OK: %d", i, resp.StatusCode)
+				return
+			}
+
+			ch <- nil
+		}()
+	}
+
+	for i := 0; i < nmessages; i++ {
+		assert.NoErrorf(t, <-ch, "Response %d", i)
+	}
+
+	finished := time.Now()
+	assert.WithinDuration(t, started, finished, 5*time.Second, "All requests should be done in parallel")
+
+	require.NoError(t, stop(t.Logf), "Server should stop without issues")
 }

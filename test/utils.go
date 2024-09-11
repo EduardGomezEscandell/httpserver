@@ -55,6 +55,7 @@ func RunServer(ctx context.Context) (func(func(string, ...any)) error, error) {
 			return fmt.Errorf("failed to wait for server to stop: %v. Stdout+Stderr:\n%s", err, errR.String())
 		}
 
+		logf("Server stopped. Stdout+Stderr:\n%s", errR.String())
 		return nil
 	}, nil
 }

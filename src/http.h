@@ -76,7 +76,7 @@ struct multiplexer_t {
 struct httpserver {
   // Multiplexer for the server, mapping paths to handlers
   struct multiplexer_t multiplexer;
-  
+
   // Mask with signals that are handler externally
   sigset_t interruptmask;
 };
@@ -94,7 +94,7 @@ int httpserver_register(struct httpserver *server, char const *method,
 // Serve the http server on the given socket file descriptor
 // If interrupt is not NULL, it'll be used to stop the server when set to true
 int httpserver_serve(struct httpserver *server, int sockfd,
-                     volatile bool const *interrupt);
+                     volatile bool *interrupt);
 
 // Close the http server and free its resources
 // Does not close the socket file descriptor

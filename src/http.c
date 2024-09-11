@@ -1,13 +1,15 @@
 #include <assert.h>
+#include <bits/pthreadtypes.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <time.h>
 #include <unistd.h>
 
-#define __USE_GNU // Required for ppoll
+#define __USE_GNU // Required for ppoll and pthread_timedjoin_np
+#include <pthread.h>
 #include <sys/poll.h>
 #undef __USE_GNU
 
-#include <sys/signal.h>
 #include <sys/signal.h>
 #include <sys/socket.h>
 
@@ -400,7 +402,7 @@ bool mux_match(char const *const a, char const *const b) {
   return strcmp(a, b) == 0 || strcmp(b, "*") == 0;
 }
 
-httpserver_callback mux_get(struct multiplexer_t *mux, char *method,
+httpserver_callback mux_get(struct multiplexer_t const *mux, char *method,
                             const char *path) {
 
   // Default to Not Found
@@ -474,46 +476,145 @@ int httpserver_wait_accept(sigset_t const sigmask, int const sockfd) {
   return accept(sockfd, NULL, NULL);
 }
 
+struct connection_details {
+  struct httpserver *server;
+  int fd;
+  int thread_id;
+};
+
+void handle_connection_imp(struct connection_details const *const cd) {
+  struct request_t *req = parse_request(cd->fd);
+  struct response_t *res = new_response(cd->fd);
+
+  if (res == NULL) {
+    write(cd->fd, "HTTP/1.1 500 Internal Server Error\n\n", 36);
+    free_request(req);
+    return;
+  }
+
+  httpserver_callback callback;
+  if (req == NULL) {
+    printf("bad request (thread %d)\n", cd->thread_id);
+    callback = callback400; // Bad Request
+  } else {
+    printf("%s %s (thread %d)\n", req->method, req->path, cd->thread_id);
+    callback = mux_get(&cd->server->multiplexer, req->method, req->path);
+  }
+
+  callback(res, req);
+
+  free_request(req);
+  response_close(res);
+}
+
+void *handle_connection(void *ptr) {
+  struct connection_details *const cd = (struct connection_details *)ptr;
+  handle_connection_imp(cd);
+  close(cd->fd);
+  free(ptr);
+  return NULL;
+}
+
+struct thread_spinner {
+  pthread_t threads[16];
+  size_t cursor;
+};
+
+void thread_spinner_close(struct thread_spinner *t, volatile bool *interrupt) {
+  const size_t n = sizeof(t->threads) / sizeof(t->threads[0]);
+
+  for (size_t i = 0; i < n && !interrupt; ++i) {
+    if (t->threads[i] == 0) {
+      continue;
+    }
+
+    pthread_join(t->threads[i], NULL);
+    t->threads[i] = 0;
+  }
+}
+
+int thread_spinner_get(struct thread_spinner *t, volatile bool *interrupt) {
+  const size_t n = sizeof(t->threads) / sizeof(t->threads[0]);
+
+  while (!*interrupt) {
+    if (t->threads[t->cursor] == 0) { // Free slot
+      size_t const i = t->cursor;
+      t->cursor = (t->cursor + 1) % n;
+      return i;
+    }
+
+    struct timespec abstime;
+    clock_gettime(CLOCK_REALTIME, &abstime);
+    const size_t millisecond = 1000 * 1000;
+    abstime.tv_nsec += 10 * millisecond;
+
+    const size_t i = t->cursor;
+    t->cursor = (t->cursor + 1) % n;
+
+    int x = pthread_timedjoin_np(t->threads[i], NULL, &abstime);
+    switch (x) {
+    case 0:
+      // Slot opened up
+      t->threads[i] = 0;
+      return i;
+    case EBUSY:
+      /* fallthrough */
+    case ETIMEDOUT:
+      continue;
+    }
+
+    return -1;
+  }
+
+  return -1;
+}
+
 int httpserver_serve(struct httpserver *const server, const int sockfd,
-                     volatile bool const *interrupt) {
+                     volatile bool *interrupt) {
   bool dummy = false;
   if (interrupt == NULL) {
     interrupt = &dummy;
   }
 
+  struct thread_spinner tspinner = {
+      .threads = {0},
+      .cursor = 0,
+  };
+
   while (!*interrupt) {
     int fd = httpserver_wait_accept(server->interruptmask, sockfd);
     if (fd < 0) {
+      thread_spinner_close(&tspinner, interrupt);
       return -1;
     } else if (fd == 0) {
       continue;
     }
 
-    struct request_t *req = parse_request(fd);
-    struct response_t *res = new_response(fd);
-
-    if (res == NULL) {
-      write(fd, "HTTP/1.1 500 Internal Server Error\n\n", 36);
-      free_request(req);
+    int idx = thread_spinner_get(&tspinner, interrupt);
+    if (idx < 0) {
       close(fd);
       continue;
     }
 
-    httpserver_callback callback;
-    if (req == NULL) {
-      callback = callback400; // Bad Request
-    } else {
-      printf("%s %s\n", req->method, req->path);
-      callback = mux_get(&server->multiplexer, req->method, req->path);
+    pthread_t *thread = &tspinner.threads[idx];
+
+    struct connection_details *deets = malloc(sizeof(*deets));
+    *deets = (struct connection_details){
+        .server = server,
+        .fd = fd,
+        .thread_id = idx,
+    };
+
+    if (pthread_create(thread, NULL, handle_connection, (void *)deets) != 0) {
+      free(deets);
+      close(fd);
+      *thread = 0; // Mark slot as free
+      continue;
     }
-
-    callback(res, req);
-
-    free_request(req);
-    response_close(res);
-    close(fd);
   }
 
+  *interrupt = false;
+  thread_spinner_close(&tspinner, interrupt);
   return 0;
 }
 

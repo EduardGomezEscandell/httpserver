@@ -29,6 +29,12 @@ void handler_parrot(struct response_t *res, struct request_t *req) {
   res->body = new_string(req->body, req->content_length);
 }
 
+void handler_sleep(struct response_t *res, struct request_t *req) {
+  res->status = HTTP_STATUS_OK;
+  res->body = new_string_literal("Sleeping for 1 second\n");
+  sleep(1);
+}
+
 volatile bool interrupted = false;
 void interrupt_handler(int sig) { interrupted = true; }
 
@@ -56,6 +62,10 @@ int main() {
 
   if (httpserver_register(server, "POST", "/parrot", handler_parrot) != 0) {
     exiterr(1, "could not register parrot handler");
+  }
+
+  if (httpserver_register(server, "POST", "/sleep", handler_sleep) != 0) {
+    exiterr(1, "could not register sleep handler");
   }
 
   char fmt[128];
