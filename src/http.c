@@ -13,6 +13,7 @@
 #include <sys/socket.h>
 
 #include "http.h"
+#include "net.h"
 
 // Increase the capacity of the headers_t to make sure one more item fits.
 int headers_inc_cap(struct headers_t *headers) {
@@ -456,7 +457,8 @@ void httpserver_free(struct httpserver *server) {
   free(server);
 }
 
-int httpserver_wait_accept(sigset_t const sigmask, int const sockfd) {
+int httpserver_wait_accept(sigset_t const sigmask, int const sockfd,
+                           struct sockaddr *addr, socklen_t *addrlen) {
   struct pollfd fds = {
       .fd = sockfd,
       .events = POLLIN,
@@ -472,13 +474,14 @@ int httpserver_wait_accept(sigset_t const sigmask, int const sockfd) {
     return ret;
   }
 
-  return accept(sockfd, NULL, NULL);
+  return accept(sockfd, addr, addrlen);
 }
 
 struct connection_details {
   struct httpserver *server;
   int fd;
   int thread_id;
+  struct sockaddr_in addr;
 };
 
 void handle_connection_imp(struct connection_details const *const cd) {
@@ -491,12 +494,20 @@ void handle_connection_imp(struct connection_details const *const cd) {
     return;
   }
 
+  char address[128];
+  if (cd->addr.sin_family == AF_INET) {
+    format_address(address, sizeof(address), &cd->addr);
+  } else {
+    snprintf(address, sizeof(address), "unknown");
+  }
+
   httpserver_callback callback;
   if (req == NULL) {
-    printf("bad request (thread %d)\n", cd->thread_id);
+    printf("bad request (thread %d) %s\n", cd->thread_id, address);
     callback = callback400; // Bad Request
   } else {
-    printf("%s %s (thread %d)\n", req->method, req->path, cd->thread_id);
+    printf("%s %s (thread %d) %s\n", req->method, req->path, cd->thread_id,
+           address);
     callback = mux_get(&cd->server->multiplexer, req->method, req->path);
   }
 
@@ -596,7 +607,11 @@ int httpserver_serve(struct httpserver *const server, const int sockfd,
   }
 
   while (!*interrupt) {
-    int fd = httpserver_wait_accept(server->interruptmask, sockfd);
+    struct sockaddr_in addr;
+    socklen_t addrlen = sizeof(addr);
+
+    int fd = httpserver_wait_accept(server->interruptmask, sockfd,
+                                    (struct sockaddr *)&addr, &addrlen);
     if (fd < 0) {
       thread_spinner_close(&tspinner, interrupt);
       return -1;
@@ -617,6 +632,7 @@ int httpserver_serve(struct httpserver *const server, const int sockfd,
         .server = server,
         .fd = fd,
         .thread_id = idx,
+        .addr = addr,
     };
 
     if (pthread_create(thread, NULL, handle_connection, (void *)deets) != 0) {
