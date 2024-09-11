@@ -19,8 +19,9 @@ void format_address(char *buff, size_t const bufsize,
 
 in_port_t port(uint16_t p) { return htons(p); }
 
-struct in_addr ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
-  return (struct in_addr){.s_addr = d << 24 | c << 16 | b << 8 | a};
+struct in_addr ip_address(uint8_t addr[4]) {
+  return (struct in_addr){.s_addr = addr[3] << 24 | addr[2] << 16 |
+                                    addr[1] << 8 | addr[0]};
 }
 
 int bind_and_listen(struct sockaddr_in const *const addr,

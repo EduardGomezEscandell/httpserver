@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <bits/pthreadtypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
@@ -516,14 +515,26 @@ void *handle_connection(void *ptr) {
 }
 
 struct thread_spinner {
-  pthread_t threads[16];
+  pthread_t *threads;
+  size_t size;
   size_t cursor;
 };
 
-void thread_spinner_close(struct thread_spinner *t, volatile bool *interrupt) {
-  const size_t n = sizeof(t->threads) / sizeof(t->threads[0]);
+struct thread_spinner new_thread_spinner(size_t const size) {
+  struct thread_spinner spinner = {
+      .threads = calloc(size, sizeof(pthread_t)),
+      .size = size,
+      .cursor = 0,
+  };
 
-  for (size_t i = 0; i < n && !interrupt; ++i) {
+  if (spinner.threads == NULL) {
+    spinner.size = 0;
+  }
+  return spinner;
+}
+
+void thread_spinner_close(struct thread_spinner *t, volatile bool *interrupt) {
+  for (size_t i = 0; i < t->size && !interrupt; ++i) {
     if (t->threads[i] == 0) {
       continue;
     }
@@ -531,15 +542,18 @@ void thread_spinner_close(struct thread_spinner *t, volatile bool *interrupt) {
     pthread_join(t->threads[i], NULL);
     t->threads[i] = 0;
   }
+
+  free(t->threads);
+  t->threads = NULL;
+  t->size = 0;
+  t->cursor = 0;
 }
 
 int thread_spinner_get(struct thread_spinner *t, volatile bool *interrupt) {
-  const size_t n = sizeof(t->threads) / sizeof(t->threads[0]);
-
   while (!*interrupt) {
     if (t->threads[t->cursor] == 0) { // Free slot
       size_t const i = t->cursor;
-      t->cursor = (t->cursor + 1) % n;
+      t->cursor = (t->cursor + 1) % t->size;
       return i;
     }
 
@@ -549,7 +563,7 @@ int thread_spinner_get(struct thread_spinner *t, volatile bool *interrupt) {
     abstime.tv_nsec += 10 * millisecond;
 
     const size_t i = t->cursor;
-    t->cursor = (t->cursor + 1) % n;
+    t->cursor = (t->cursor + 1) % t->size;
 
     int x = pthread_timedjoin_np(t->threads[i], NULL, &abstime);
     switch (x) {
@@ -570,16 +584,16 @@ int thread_spinner_get(struct thread_spinner *t, volatile bool *interrupt) {
 }
 
 int httpserver_serve(struct httpserver *const server, const int sockfd,
-                     volatile bool *interrupt) {
+                     const size_t max_threads, volatile bool *interrupt) {
   bool dummy = false;
   if (interrupt == NULL) {
     interrupt = &dummy;
   }
 
-  struct thread_spinner tspinner = {
-      .threads = {0},
-      .cursor = 0,
-  };
+  struct thread_spinner tspinner = new_thread_spinner(max_threads);
+  if (tspinner.threads == NULL) {
+    return -1;
+  }
 
   while (!*interrupt) {
     int fd = httpserver_wait_accept(server->interruptmask, sockfd);

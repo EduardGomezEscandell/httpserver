@@ -93,7 +93,7 @@ int httpserver_register(struct httpserver *server, char const *method,
 
 // Serve the http server on the given socket file descriptor
 // If interrupt is not NULL, it'll be used to stop the server when set to true
-int httpserver_serve(struct httpserver *server, int sockfd,
+int httpserver_serve(struct httpserver *server, int sockfd, size_t max_threads,
                      volatile bool *interrupt);
 
 // Close the http server and free its resources

@@ -5,6 +5,7 @@
 
 #include "src/http.h"
 #include "src/net.h"
+#include "src/settings.h"
 
 void handle_home(struct response_t *res, struct request_t *req) {
   res->status = HTTP_STATUS_OK;
@@ -38,11 +39,13 @@ void handler_sleep(struct response_t *res, struct request_t *req) {
 volatile bool interrupted = false;
 void interrupt_handler(int sig) { interrupted = true; }
 
-int main() {
+int main(int argc, char **argv) {
+  struct settings settings = parse_cli(argc, argv);
+
   struct sockaddr_in const addr = {
       .sin_family = AF_INET,
-      .sin_port = port(8080),
-      .sin_addr = ip_address(127, 0, 0, 1),
+      .sin_port = port(settings.port),
+      .sin_addr = ip_address(settings.address),
   };
 
   struct httpserver *server = new_httpserver();
@@ -80,7 +83,8 @@ int main() {
   sigaddset(&server->interruptmask, SIGTERM);
   sigaddset(&server->interruptmask, SIGQUIT);
 
-  if (httpserver_serve(server, sockfd, &interrupted) != 0) {
+  if (httpserver_serve(server, sockfd, settings.max_threads, &interrupted) !=
+      0) {
     exiterr(1, "could not serve\n");
   }
 
