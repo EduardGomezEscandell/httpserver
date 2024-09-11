@@ -55,7 +55,8 @@ struct response_t *new_response(int fd);
 int response_close(struct response_t *res);
 
 // Append a header to the response
-int response_headers_append(struct response_t *headers, char *key, char *value);
+int response_headers_append(struct response_t *headers, char const *key,
+                            char const *value);
 
 // Free the response without writing to the socket
 // Do not call if response_close was already called
@@ -99,7 +100,3 @@ int httpserver_serve(struct httpserver *server, int sockfd, size_t max_threads,
 // Close the http server and free its resources
 // Does not close the socket file descriptor
 void httpserver_free(struct httpserver *server);
-
-void callback400(struct response_t *res, struct request_t *req);
-void callback404(struct response_t *res, struct request_t *req);
-void callback405(struct response_t *res, struct request_t *req);

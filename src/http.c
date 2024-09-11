@@ -12,8 +12,9 @@
 #include <sys/signal.h>
 #include <sys/socket.h>
 
-#include "http.h"
 #include "net.h"
+#include "default_callbacks.h"
+#include "http.h"
 
 // Increase the capacity of the headers_t to make sure one more item fits.
 int headers_inc_cap(struct headers_t *headers) {
@@ -47,7 +48,8 @@ int request_headers_append(struct request_t *req, char *key, char *value) {
   return 0;
 }
 
-int response_headers_append(struct response_t *resp, char *key, char *value) {
+int response_headers_append(struct response_t *resp, char const *const key,
+                            char const *const value) {
   if (headers_inc_cap(&resp->headers) != 0) {
     return -1;
   }
@@ -646,37 +648,4 @@ int httpserver_serve(struct httpserver *const server, const int sockfd,
   *interrupt = false;
   thread_spinner_close(&tspinner, interrupt);
   return 0;
-}
-
-void callback400(struct response_t *res, struct request_t *req) {
-  res->status = HTTP_STATUS_BAD_REQUEST;
-  if (req == NULL) {
-    // could be NULL if the request could not be parsed
-    return;
-  }
-
-  if (strncmp(req->method, "HEAD", sizeof("HEAD")) == 0) {
-    // HEAD is not allowed to have a body
-    return;
-  }
-
-  res->body = new_string_literal("400 Bad Request\n");
-}
-
-void callback404(struct response_t *res, struct request_t *req) {
-  res->status = HTTP_STATUS_NOT_FOUND;
-  if (strncmp(req->method, "HEAD", sizeof("HEAD")) == 0) {
-    // HEAD is not allowed to have a body
-    return;
-  }
-  res->body = new_string_literal("404 Not Found\n");
-}
-
-void callback405(struct response_t *res, struct request_t *req) {
-  res->status = HTTP_STATUS_METHOD_NOT_ALLOWED;
-  if (strncmp(req->method, "HEAD", sizeof("HEAD")) == 0) {
-    // HEAD is not allowed to have a body
-    return;
-  }
-  res->body = new_string_literal("405 Method Not Allowed\n");
 }

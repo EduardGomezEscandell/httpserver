@@ -3,6 +3,7 @@
 
 #include <sys/signal.h>
 
+#include "src/default_callbacks.h"
 #include "src/http.h"
 #include "src/net.h"
 #include "src/settings.h"
@@ -16,8 +17,7 @@ void handle_home(struct response_t *res, struct request_t *req) {
 }
 
 void handle_root(struct response_t *res, struct request_t *req) {
-  res->status = HTTP_STATUS_MOVED_PERMANENTLY;
-  response_headers_append(res, "Location", "/home");
+  callback_redirect(res, "/home");
 }
 
 void handler_parrot(struct response_t *res, struct request_t *req) {
